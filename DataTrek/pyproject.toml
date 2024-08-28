@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "datatrek"
+version = "0.1.0"
+description = "A data pipeline for travel-related data ingestion and processing"
+authors = ["Deji Emiabata"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pyspark = "^3.5.2"
+google-cloud-storage = "^2.18.2"
+python-dotenv = "^1.0.1"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.2"
+ruff = "^0.6.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+
+[tool.ruff.format]
+quote-style = "double"
+
+indent-style = "space"

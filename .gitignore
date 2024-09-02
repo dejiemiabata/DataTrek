@@ -1,0 +1,6 @@
+.ruff_cache/
+.env
+.venv
+env/
+venv/
+**/airflow/logs

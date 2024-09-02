@@ -1,0 +1,84 @@
+x-spark-common: &spark-common
+  image: bitnami/spark:latest
+  volumes:
+    - ./transformation:/opt/bitnami/spark/jobs
+  networks:
+    - spark-network
+  env_file: ".env"
+
+x-airflow-common: &airflow-common
+  build: .
+  volumes:
+    - ./airflow/dags:/opt/airflow/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/scripts:/opt/airflow/scripts
+    - ~/.aws/:/root/.aws:ro # Mount aws credentials
+  networks:
+    - airflow-network
+  env_file: ".env"
+
+services:
+  # Nessie default in-memory store
+  nessie:
+    image: projectnessie/nessie:latest
+    # Custom name
+    container_name: nessie
+    ports:
+      - "19120:19120"
+    networks:
+      - spark-network
+
+  # Spark Master
+  spark-master:
+    <<: *spark-common
+    container_name: spark-master
+    # Default setting is master but ok to re-declare
+    environment:
+      - SPARK_MODE=master
+    ports:
+      - "7077:7077"
+      - "9090:8080"
+    depends_on:
+      - nessie
+
+  # Spark Worker
+  spark-worker:
+    <<: *spark-common
+    container_name: spark-worker
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+    depends_on:
+      - spark-master
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    env_file: ".env"
+    networks:
+      - airflow-network
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow-webserver
+    ports:
+      - "8080:8080"
+    entrypoint: ./airflow/scripts/airflow-entrypoint.sh    
+    depends_on:
+      - postgres
+    networks:
+      - airflow-network
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow-scheduler
+    depends_on:
+      - postgres
+    networks:
+      - airflow-network
+    command: airflow scheduler
+networks:
+  airflow-network:
+    driver: bridge
+  spark-network:

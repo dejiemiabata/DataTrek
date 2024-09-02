@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from google.cloud import storage
 
 
-def upload_to_gcs(bucket_name: str, file_path: str, destinaton_blob_name: str):
+def upload_to_gcs(bucket_name: str, file_path: str, destination_blob_name: str):
     """Uploads a file to the bucket."""
 
     storage_client = storage.Client()

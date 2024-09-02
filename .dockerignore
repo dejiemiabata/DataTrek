@@ -1,0 +1,6 @@
+.git
+.ruff_cache
+/venv
+.env
+/airflow/logs
+.ruff_cache

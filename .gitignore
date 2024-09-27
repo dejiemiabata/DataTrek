@@ -4,3 +4,15 @@
 env/
 venv/
 **/airflow/logs
+
+
+*.manifest
+*.spec
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Cython debug symbols
+cython_debug/

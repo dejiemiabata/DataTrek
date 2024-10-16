@@ -1,21 +1,26 @@
 x-spark-common: &spark-common
-  image: bitnami/spark:latest
+  image: "bitnami/spark:3.5.2"
   volumes:
-    - ./transformation:/opt/bitnami/spark/jobs
+    - ./transformation/spark/jobs:/opt/bitnami/spark/jobs
+    - ~/.aws/:/opt/bitnami/spark/.aws:ro
+    - ./transformation/spark/spark_logs:/opt/bitnami/spark/logs
+
   networks:
-    - spark-network
-  env_file: ".env"
+    - airflow-spark-network
 
 x-airflow-common: &airflow-common
-  build: .
+  build:
+    context: .
+    dockerfile: Dockerfile
   volumes:
-    - ./airflow/dags:/opt/airflow/airflow/dags
+    - ./airflow/dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs
     - ./airflow/scripts:/opt/airflow/scripts
     - ~/.aws/:/root/.aws:ro # Mount aws credentials
+    - ./transformation:/opt/airflow/jobs
+
   networks:
-    - airflow-network
-  env_file: ".env"
+    - airflow-spark-network
 
 services:
   # Nessie default in-memory store
@@ -25,31 +30,48 @@ services:
     container_name: nessie
     ports:
       - "19120:19120"
+    profiles: [nessie]
     networks:
-      - spark-network
+      - airflow-spark-network
 
   # Spark Master
   spark-master:
     <<: *spark-common
     container_name: spark-master
+    env_file: ".env"
     # Default setting is master but ok to re-declare
+    profiles: [spark]
     environment:
       - SPARK_MODE=master
     ports:
       - "7077:7077"
       - "8081:8080"
-    depends_on:
-      - nessie
+    command: /bin/bash -c "mkdir -p /opt/bitnami/spark/logs/spark-events && /opt/bitnami/spark/bin/spark-class org.apache.spark.deploy.master.Master"
 
   # Spark Worker
-  spark-worker:
+  spark-worker-1:
     <<: *spark-common
-    container_name: spark-worker
+    container_name: spark-worker-1
+    env_file: ".env"
+    profiles: [spark]
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
     depends_on:
       - spark-master
+    command: /bin/bash -c "mkdir -p /opt/bitnami/spark/logs/spark-events && /opt/bitnami/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077"
+
+  spark-worker-2:
+    <<: *spark-common
+    container_name: spark-worker-2
+    env_file: ".env"
+    profiles: [spark]
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+    depends_on:
+      - spark-master
+    command: /bin/bash -c "mkdir -p /opt/bitnami/spark/logs/spark-events && /opt/bitnami/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077"
 
   postgres:
     image: postgres:latest
@@ -57,29 +79,30 @@ services:
     ports:
       - "5432:5432"
     env_file: ".env"
+    profiles: [airflow]
     networks:
-      - airflow-network
+      - airflow-spark-network
 
   airflow-webserver:
     <<: *airflow-common
     container_name: airflow-webserver
     ports:
       - "8080:8080"
-    entrypoint: ./airflow/scripts/airflow-entrypoint.sh    
+    entrypoint: ./airflow/scripts/airflow-entrypoint.sh
+    env_file: ".env"
+    profiles: [airflow]
     depends_on:
       - postgres
-    networks:
-      - airflow-network
+
   airflow-scheduler:
     <<: *airflow-common
     container_name: airflow-scheduler
+    env_file: ".env"
+    profiles: [airflow]
     depends_on:
       - postgres
-    networks:
-      - airflow-network
     command: airflow scheduler
+
 networks:
-  airflow-network:
-    driver: bridge
-  spark-network:
+  airflow-spark-network:
     driver: bridge

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-airflow db init
-
 airflow db migrate
 
 airflow users create \

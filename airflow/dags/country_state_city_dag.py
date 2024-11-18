@@ -7,7 +7,7 @@ from default_spark_conf import get_default_spark_conf, get_glue_catalog_conf
 from pendulum import datetime, duration
 
 from airflow import DAG
-from transformation.utils.datasets import Dataset
+from utils.datasets import Dataset
 
 transformed_data_path = os.getenv("S3_LOCATION_TRANSFORMED_PATH")
 raw_data_path = os.getenv("S3_LOCATION_RAW_PATH")
@@ -55,7 +55,18 @@ state_city_spark_job_conf = {
     **glue_catalog_conf,
     **state_city_job_specific_conf,
 }
+country_json_input_s3_path = os.getenv("S3_LOCATION_RAW_PATH")
+country_population_json_input_s3_path = os.getenv("S3_COUNTRY_POPULATION_RAW_PATH")
+preprocess_data_path = os.getenv("S3_LOCATION_PREPROCESSED_PATH")
+countries_population_preprocess_data_path = (
+    f"{preprocess_data_path}/countries_population.parquet"
+)
+countries_states_cities_preprocess_data_path = (
+    f"{preprocess_data_path}/countries_state_cities.parquet"
+)
 
+
+# TODO Probably best to isolate the conversion tasks to separate DAGs and upon completion signal to transform DAGs to being execution
 
 with DAG(
     "country_state_city_transform_dag",
@@ -64,13 +75,32 @@ with DAG(
     catchup=False,
 ) as dag:
 
-    json_to_parquet_task = SparkSubmitOperator(
-        application="transformation/spark/jobs/convert_json_to_parquet_job.py",
+    country_state_city_json_to_parquet_task = SparkSubmitOperator(
+        application="transformation/spark/jobs/convert_country_state_city_json_to_parquet.py",
         conn_id="spark_default",
-        task_id="convert_json_to_parquet",
-        name="convert_json_to_parquet",
+        task_id="convert_country_state_city_json_to_parquet",
+        name="convert_country_state_city_json_to_parquet",
+        application_args=[
+            "--input_path",
+            country_json_input_s3_path,
+            "--output_path",
+            countries_states_cities_preprocess_data_path,
+        ],
         conf=base_spark_job_conf,
-        trigger_rule="all_done",
+    )
+
+    country_population_json_to_parquet_task = SparkSubmitOperator(
+        application="transformation/spark/jobs/convert_country_state_city_json_to_parquet.py",
+        conn_id="spark_default",
+        task_id="convert_country_population_json_to_parquet",
+        name="convert_country_population_json_to_parquet",
+        application_args=[
+            "--input_path",
+            country_population_json_input_s3_path,
+            "--output_path",
+            countries_population_preprocess_data_path,
+        ],
+        conf=base_spark_job_conf,
     )
 
     country_transform_task = SparkSubmitOperator(
@@ -80,7 +110,6 @@ with DAG(
         name=f"transform_countries",
         application_args=["--dataset", Dataset.COUNTRIES.value],
         conf=base_spark_job_conf,
-        trigger_rule="all_done",
     )
 
     state_transform_task = SparkSubmitOperator(
@@ -90,7 +119,11 @@ with DAG(
         name=f"transform_states_cities",
         application_args=["--dataset", Dataset.STATES_CITIES.value],
         conf=state_city_spark_job_conf,
-        trigger_rule="all_done",
     )
 
-    (json_to_parquet_task >> country_transform_task >> state_transform_task)
+    (
+        country_state_city_json_to_parquet_task
+        >> country_population_json_to_parquet_task
+        >> country_transform_task
+        >> state_transform_task
+    )

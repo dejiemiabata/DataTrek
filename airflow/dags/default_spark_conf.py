@@ -20,6 +20,7 @@ def get_default_spark_conf(
         "spark.hadoop.fs.s3a.endpoint.region": aws_region,
         "spark.eventLog.enabled": "true",
         "spark.eventLog.dir": event_log_dir,
+        "spark.sql.session.timeZone": "UTC",
     }
 
 

@@ -15,7 +15,7 @@ from transformation.spark.python.country_state_city_transform import (
     transform_state_data,
 )
 from transformation.spark.python.write_to_catalog import write_to_catalog
-from transformation.utils.datasets import Dataset
+from utils.datasets import Dataset
 
 # Set up logging
 logging.basicConfig(
@@ -25,9 +25,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-raw_data_path = os.getenv("S3_LOCATION_RAW_PATH")
 transformed_data_path = os.getenv("S3_LOCATION_TRANSFORMED_PATH")
-preprocess_data_path = os.getenv("S3_LOCATION_PREPROCESSED_PATH")
 spark_master_url = os.getenv("SPARK_MASTER_URL")
 
 catalog_name = "glue_catalog"
@@ -42,17 +40,40 @@ spark = create_glue_spark_session(
 
 @click.command(name="Spark Job to Run ETL tasks.")
 @click.option("--dataset", help="Dataset to process: country, state or city")
-def run_elt(dataset: str):
+@click.option(
+    "--preprocess_data_path",
+    help="Path to the preprocessed Parquet data for each type of dataset",
+)
+@click.option("--population_data_path", help="Path to the population Parquet data")
+def run_elt(dataset: str, preprocess_data_path: str, population_data_path: str):
     try:
 
-        logger.info("Reading Parquet data from the intermediate path")
-        raw_data_df: DataFrame = spark.read.parquet(preprocess_data_path)
-        logger.info("Successfully read data in Parquet format")
+        logger.info(
+            f"Reading Parquet data from the preprocessed/intermediate path {preprocess_data_path}"
+        )
+        final_country_state_city_preprocessed_data_df: DataFrame = spark.read.parquet(
+            preprocess_data_path
+        )
+        logger.info(f"Successfully read data in Parquet format {preprocess_data_path}")
+
+        logger.info(
+            f"Reading Parquet data from the preprocessed/intermediate path {population_data_path}"
+        )
+        final_country_population_preprocessed_data_df: DataFrame = spark.read.parquet(
+            population_data_path
+        )
+        logger.info(
+            f"Successfully read data in Parquet format from {population_data_path}"
+        )
 
         if dataset == Dataset.COUNTRIES.value:
             logger.info("Starting data transformation...")
 
-            transformed_df = transform_country_data(spark, raw_data_df)
+            transformed_df = transform_country_data(
+                spark=spark,
+                preprocess_data_df=final_country_state_city_preprocessed_data_df,
+                population_data_df=final_country_population_preprocessed_data_df,
+            )
 
             logger.info("Data transformation completed.")
 
@@ -73,7 +94,9 @@ def run_elt(dataset: str):
             logger.info(f"{table_name} data written successfully.")
 
         elif dataset == Dataset.STATES.value:
-            transformed_df = transform_state_data(raw_data_df=raw_data_df)
+            transformed_df = transform_state_data(
+                preprocess_data_df=final_country_state_city_preprocessed_data_df
+            )
             table_name = Dataset.STATES.value
             s3_path = f"{transformed_data_path}/states"
             partition_cols = ["country_code", "state_code"]
@@ -91,7 +114,9 @@ def run_elt(dataset: str):
             logger.info(f"{table_name} data written successfully.")
 
         elif dataset == Dataset.CITIES.value:
-            transformed_df = transform_city_data(raw_data_df=raw_data_df)
+            transformed_df = transform_city_data(
+                preprocess_data_df=final_country_state_city_preprocessed_data_df
+            )
             table_name = Dataset.CITIES.value
             s3_path = f"{transformed_data_path}/cities"
             partition_cols = ["country_code", "state_code", "city_name"]
@@ -113,7 +138,9 @@ def run_elt(dataset: str):
 
             logger.info(f"Starting {table_name} data transformation...")
             transformed_states_df, transformed_cities_df = (
-                transform_state_and_city_data(raw_data_df=raw_data_df)
+                transform_state_and_city_data(
+                    preprocess_data_df=final_country_state_city_preprocessed_data_df
+                )
             )
             logger.info(f"{table_name} data transformation completed.")
 

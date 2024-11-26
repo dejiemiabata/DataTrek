@@ -59,10 +59,10 @@ country_json_input_s3_path = os.getenv("S3_LOCATION_RAW_PATH")
 country_population_json_input_s3_path = os.getenv("S3_COUNTRY_POPULATION_RAW_PATH")
 preprocess_data_path = os.getenv("S3_LOCATION_PREPROCESSED_PATH")
 countries_population_preprocess_data_path = (
-    f"{preprocess_data_path}/countries_population.parquet"
+    f"{preprocess_data_path}/countries_population"
 )
 countries_states_cities_preprocess_data_path = (
-    f"{preprocess_data_path}/countries_state_cities.parquet"
+    f"{preprocess_data_path}/countries_state_cities"
 )
 
 
@@ -108,16 +108,28 @@ with DAG(
         conn_id="spark_default",
         task_id=f"transform_countries",
         name=f"transform_countries",
-        application_args=["--dataset", Dataset.COUNTRIES.value],
+        application_args=[
+            "--dataset",
+            Dataset.COUNTRIES.value,
+            "--preprocess_data_path",
+            countries_states_cities_preprocess_data_path,
+            "--population_data_path",
+            countries_population_preprocess_data_path,
+        ],
         conf=base_spark_job_conf,
     )
 
-    state_transform_task = SparkSubmitOperator(
+    state_city_transform_task = SparkSubmitOperator(
         application="transformation/spark/jobs/country_state_city_transform_job.py",
         conn_id="spark_default",
         task_id=f"transform_states_cities",
         name=f"transform_states_cities",
-        application_args=["--dataset", Dataset.STATES_CITIES.value],
+        application_args=[
+            "--dataset",
+            Dataset.STATES_CITIES.value,
+            "--preprocess_data_path",
+            countries_states_cities_preprocess_data_path,
+        ],
         conf=state_city_spark_job_conf,
     )
 
@@ -125,5 +137,5 @@ with DAG(
         country_state_city_json_to_parquet_task
         >> country_population_json_to_parquet_task
         >> country_transform_task
-        >> state_transform_task
+        >> state_city_transform_task
     )

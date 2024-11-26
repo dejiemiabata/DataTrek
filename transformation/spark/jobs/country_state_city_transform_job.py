@@ -56,19 +56,18 @@ def run_elt(dataset: str, preprocess_data_path: str, population_data_path: str):
         )
         logger.info(f"Successfully read data in Parquet format {preprocess_data_path}")
 
-        logger.info(
-            f"Reading Parquet data from the preprocessed/intermediate path {population_data_path}"
-        )
-        final_country_population_preprocessed_data_df: DataFrame = spark.read.parquet(
-            population_data_path
-        )
-        logger.info(
-            f"Successfully read data in Parquet format from {population_data_path}"
-        )
-
         if dataset == Dataset.COUNTRIES.value:
             logger.info("Starting data transformation...")
 
+            logger.info(
+                f"Reading Parquet data from the preprocessed/intermediate path {population_data_path}"
+            )
+            final_country_population_preprocessed_data_df: DataFrame = (
+                spark.read.parquet(population_data_path)
+            )
+            logger.info(
+                f"Successfully read data in Parquet format from {population_data_path}"
+            )
             transformed_df = transform_country_data(
                 spark=spark,
                 preprocess_data_df=final_country_state_city_preprocessed_data_df,

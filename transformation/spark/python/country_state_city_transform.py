@@ -11,7 +11,9 @@ def transform_country_data(
 
     preprocess_data_df.createOrReplaceTempView("raw_country_data")
     population_data_df.createOrReplaceTempView("raw_country_population_data")
-    source_timestamp: str = "2020-08-23 16:26:00" #timestamp recorded from https://github.com/kwzrd/pypopulation/blob/main/pypopulation/resources/countries.json
+    source_timestamp: str = (
+        "2020-08-23 16:26:00"  # timestamp recorded from https://github.com/kwzrd/pypopulation/blob/main/pypopulation/resources/countries.json
+    )
     sql = f"""
 
     SELECT raw_country_data.id as country_id
@@ -28,12 +30,12 @@ def transform_country_data(
         , CAST(raw_country_data.latitude AS float) as latitude
         , CAST(raw_country_data.longitude AS float) as longitude
         , raw_country_pop_data.Population as population
-        , to_timestamp({source_timestamp}) AS population_source_last_updated_at
+        , to_timestamp('{source_timestamp}') AS population_source_last_updated_at
         , current_timestamp() as created_at
         , current_timestamp() as last_updated_at
 
         FROM raw_country_data 
-        LEFT JOIN raw_country_population_data raw_country_pop_data ON raw_country_data.iso3 = raw_country_pop_data.iso3
+        LEFT JOIN raw_country_population_data raw_country_pop_data ON raw_country_data.iso3 = raw_country_pop_data.Alpha_3
 
 
     """

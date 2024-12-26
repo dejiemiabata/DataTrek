@@ -80,6 +80,12 @@ services:
       - "5432:5432"
     env_file: ".env"
     profiles: [airflow]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $POSTGRES_DB -U $POSTGRES_USER"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     networks:
       - airflow-spark-network
 
